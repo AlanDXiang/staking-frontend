@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🪙 Web3 Staking dApp (Sepolia Testnet)
 
-## Getting Started
+A decentralized application (dApp) that allows users to stake ERC20 tokens and earn rewards in real-time. Built with the modern Ethereum stack (**Next.js, RainbowKit, Wagmi**), this project demonstrates a complete DeFi lifecycle: staking, withdrawing, claiming rewards, and administrative pool management.
 
-First, run the development server:
+![Project Screenshot](https://public/screenshot.png)
+
+
+## 🚀 Features
+
+### 👤 User Features
+* **Wallet Connection:** Seamless login with MetaMask, Rainbow, Coinbase Wallet, etc. (via RainbowKit).
+* **Real-Time Data:** Live updates for Staked Balance, Earned Rewards, and Wallet Balance.
+* **Staking Mechanics:** Approve and Deposit ERC20 tokens into the smart contract.
+* **Rewards:** Claim accumulated rewards instantly without exiting your position.
+* **Withdrawal:** Unstake tokens at any time.
+
+### 🛡️ Admin Dashboard (Owner Only)
+* *Exclusive control panel visible only to the contract owner.*
+* **Set Duration:** Configure how long the staking epoch lasts (e.g., 7 days).
+* **Fund Pool:** Inject reward tokens and start a new earning epoch (`notifyRewardAmount`).
+* **Event Monitoring:** View exact start and end times for the current staking round.
+
+## 🛠️ Tech Stack
+
+* **Frontend:** [Next.js 14](https://nextjs.org/) (App Router), TypeScript, Tailwind CSS
+* **Web3 Integration:** [Wagmi v2](https://wagmi.sh/), [Viem](https://viem.sh/)
+* **Wallet UI:** [RainbowKit](https://www.rainbowkit.com/)
+* **Smart Contracts:** Solidity (Hardhat environment)
+* **Network:** Sepolia Testnet
+
+## 📂 Project Structure
+
+```bash
+staking-frontend/
+├── app/
+│   ├── components/
+│   │   └── StakingInterface.tsx  # Core logic (Staking + Admin Panel)
+│   ├── constants.ts              # Contract Addresses & ABIs
+│   ├── layout.tsx                # Global layout (Providers)
+│   ├── page.tsx                  # Home page structure
+│   └── providers.tsx             # Wagmi & QueryClient context
+├── public/                       # Static assets
+└── ...
+
+```
+
+## ⚡ Getting Started
+
+### 1. Prerequisites
+
+* Node.js (v18+)
+* A browser wallet (MetaMask) with **Sepolia ETH**.
+
+### 2. Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone [https://github.com/AlanDXiang/staking-frontend.git](https://github.com/AlanDXiang/staking-frontend.git)
+cd staking-dapp
+npm install
+
+```
+
+### 3. Configuration
+
+This frontend requires a deployed `StakingPool` contract and `RewardToken`.
+
+1. Open `app/constants.ts`.
+2. Replace the `STAKING_POOL_ADDRESS` and Token Addresses with your deployed contract addresses.
+3. Paste the contract **ABI** (Application Binary Interface) from your Hardhat artifacts into the respective arrays.
+
+### 4. Run Locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) (or port 8088 as configured) to view the dApp.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📖 How to Use
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Connect Wallet:** Click the button in the top right to connect via MetaMask.
+2. **Approve Tokens:** Enter an amount to stake. If it's your first time, click **Approve** to allow the contract to use your tokens.
+3. **Stake:** Once approved, click **Stake** to deposit your tokens.
+4. **Watch Rewards:** You will see your "Rewards" balance increase every second (block).
+5. **Claim or Withdraw:** Click **Claim Rewards** to harvest yield, or switch to the **Withdraw** tab to exit your position.
 
-## Learn More
+## 🔐 Smart Contracts
 
-To learn more about Next.js, take a look at the following resources:
+*The contracts for this frontend are located in a separate Hardhat repository.*
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+* **StakingPool.sol:** Synthetix-based staking logic.
+* **MockERC20.sol:** Used for both Staking Token (STK) and Reward Token (RWD).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📄 License
 
-## Deploy on Vercel
+This project is open source and available under the [MIT License](https://www.google.com/search?q=LICENSE).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
