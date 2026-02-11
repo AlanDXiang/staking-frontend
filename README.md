@@ -2,7 +2,7 @@
 
 A decentralized application (dApp) that allows users to stake ERC20 tokens and earn rewards in real-time. Built with the modern Ethereum stack (**Next.js, RainbowKit, Wagmi**), this project demonstrates a complete DeFi lifecycle: staking, withdrawing, claiming rewards, and administrative pool management.
 
-![Project Screenshot](https://public/screenshot.png)
+![Project Screenshot](https://storage.googleapis.com/web3_project/img/ui-stak.png)
 
 
 ## 🚀 Features
