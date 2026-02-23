@@ -5,8 +5,6 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { formatEther, parseEther } from 'viem';
 import { STAKING_POOL_ADDRESS, STAKING_TOKEN_ADDRESS, REWARD_TOKEN_ADDRESS, STAKING_POOL_ABI, ERC20_ABI } from '../constants';
 
-const OWNER_ADDRESS = "0x7ea278E9099eCee20D43c5c4C7E048b5EaE3fC93"; // Your Admin Wallet
-
 export default function StakingInterface() {
     const { address, isConnected } = useAccount();
     const [amount, setAmount] = useState('');
@@ -16,6 +14,7 @@ export default function StakingInterface() {
     // Admin State
     const [adminDuration, setAdminDuration] = useState('');
     const [adminRewardAmount, setAdminRewardAmount] = useState('');
+    const [showAdminHelp, setShowAdminHelp] = useState(true);
 
     // --- READ DATA ---
     const { data: stakedBalance, refetch: refetchStaked } = useReadContract({
@@ -91,6 +90,21 @@ export default function StakingInterface() {
         functionName: 'updatedAt',
     });
 
+    // Get contract's RWD token balance
+    const { data: contractRewardBalance } = useReadContract({
+        address: REWARD_TOKEN_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [STAKING_POOL_ADDRESS],
+    });
+
+    // Get current owner
+    const { data: contractOwner } = useReadContract({
+        address: STAKING_POOL_ADDRESS,
+        abi: STAKING_POOL_ABI,
+        functionName: 'owner',
+    });
+
     // --- WRITE FUNCTIONS ---
     const { writeContract, data: hash, isPending } = useWriteContract();
 
@@ -158,6 +172,46 @@ export default function StakingInterface() {
         if (now <= start) return 0;
         if (now >= finish) return 100;
         return ((now - start) / (finish - start)) * 100;
+    };
+
+    // Check if epoch has ended (for setRewardsDuration)
+    const isEpochEnded = () => {
+        if (!finishAt || finishAt === 0n) return true; // No epoch started yet
+        const now = Math.floor(Date.now() / 1000);
+        return now >= Number(finishAt);
+    };
+
+    // Check if duration is set (for notifyRewardAmount)
+    const isDurationSet = () => {
+        return duration !== undefined && duration > 0n;
+    };
+
+    // Calculate if contract has enough RWD for the reward amount
+    const hasEnoughRewards = () => {
+        if (!adminRewardAmount || !contractRewardBalance || !duration || duration === 0n) return false;
+        try {
+            const rewardAmount = parseEther(adminRewardAmount);
+            return contractRewardBalance >= rewardAmount;
+        } catch {
+            return false;
+        }
+    };
+
+    // Calculate estimated APR from admin inputs
+    const calculateEstimatedAPR = () => {
+        if (!adminRewardAmount || !adminDuration || !totalSupply || totalSupply === 0n) return "0";
+        try {
+            const rewardAmount = parseEther(adminRewardAmount);
+            const durationNum = Number(adminDuration);
+            const rewardRateEstimate = Number(rewardAmount) / durationNum;
+            const yearInSeconds = 31536000;
+            const annualRewards = rewardRateEstimate * yearInSeconds;
+            const totalStakedValue = Number(totalSupply);
+            const apr = (annualRewards / totalStakedValue) * 100;
+            return apr.toFixed(2);
+        } catch {
+            return "0";
+        }
     };
 
     // --- HANDLERS ---
@@ -252,8 +306,11 @@ export default function StakingInterface() {
     }
 
     const needsApproval = isStaking && allowance !== undefined && amount && allowance < parseEther(amount);
-    const isOwner = address === OWNER_ADDRESS;
+    const isOwner = address?.toLowerCase() === contractOwner?.toLowerCase();
     const progressPercentage = getProgressPercentage();
+    const epochEnded = isEpochEnded();
+    const durationSet = isDurationSet();
+    const enoughRewards = hasEnoughRewards();
 
     return (
         <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -535,18 +592,99 @@ export default function StakingInterface() {
             {/* ADMIN ZONE (Only visible to Owner) */}
             {isOwner && (
                 <div className="bg-gradient-to-br from-red-950/40 to-orange-950/40 backdrop-blur-xl border border-red-500/30 p-6 rounded-2xl shadow-2xl">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="text-3xl">🛡️</div>
-                        <div>
-                            <h3 className="text-xl font-bold text-red-400">Owner Control Panel</h3>
-                            <p className="text-xs text-red-300/70">Admin-only functions</p>
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="text-3xl">🛡️</div>
+                            <div>
+                                <h3 className="text-xl font-bold text-red-400">Owner Control Panel</h3>
+                                <p className="text-xs text-red-300/70">Admin-only functions</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowAdminHelp(!showAdminHelp)}
+                            className="text-xs px-3 py-1 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-500/30 rounded-lg transition"
+                        >
+                            {showAdminHelp ? '🙈 Hide' : '💡 Help'}
+                        </button>
+                    </div>
+
+                    {/* Status Overview */}
+                    <div className="mb-4 bg-gray-900/70 rounded-xl p-4 border border-gray-700">
+                        <h4 className="text-sm font-bold text-gray-300 mb-3">📊 Current Status</h4>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400">Epoch Status:</span>
+                                <span className={`font-bold ${epochEnded ? 'text-green-400' : 'text-yellow-400'}`}>
+                                    {epochEnded ? '✅ Ended / Not Started' : '🔄 Active'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400">Duration Set:</span>
+                                <span className={`font-bold ${durationSet ? 'text-green-400' : 'text-red-400'}`}>
+                                    {durationSet ? `✅ ${Number(duration) / 86400} days` : '❌ Not Set'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400">Contract RWD Balance:</span>
+                                <span className="font-bold text-purple-400">
+                                    {contractRewardBalance ? Number(formatEther(contractRewardBalance as bigint)).toFixed(2) : '0'} RWD
+                                </span>
+                            </div>
                         </div>
                     </div>
 
+                    {/* Help Section */}
+                    {showAdminHelp && (
+                        <div className="mb-4 bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                            <h4 className="text-sm font-bold text-blue-300 mb-2 flex items-center gap-2">
+                                <span>📚</span> Setup Workflow
+                            </h4>
+                            <ol className="text-xs text-gray-300 space-y-2 list-decimal list-inside">
+                                <li className={epochEnded ? 'text-green-400 line-through' : 'font-bold'}>
+                                    Wait for current epoch to end (or if it's the first time)
+                                    {!epochEnded && <span className="ml-2 text-yellow-400">⏳ Waiting...</span>}
+                                </li>
+                                <li className={durationSet ? 'text-green-400 line-through' : epochEnded ? 'font-bold' : 'text-gray-500'}>
+                                    Set duration (e.g., 604800 for 7 days)
+                                    {durationSet && <span className="ml-2">✅</span>}
+                                </li>
+                                <li className={(epochEnded && durationSet) ? 'font-bold' : 'text-gray-500'}>
+                                    Transfer RWD tokens to contract (if not already done)
+                                </li>
+                                <li className={(epochEnded && durationSet) ? 'font-bold' : 'text-gray-500'}>
+                                    Notify reward amount to start the epoch
+                                </li>
+                            </ol>
+                        </div>
+                    )}
+
                     {/* Set Duration */}
                     <div className="mb-4 bg-gray-900/50 rounded-xl p-4 border border-red-900/50">
-                        <label className="block text-sm font-medium text-red-300 mb-2">Set Duration (Seconds)</label>
-                        <p className="text-xs text-gray-400 mb-3">Configure the staking epoch duration (e.g., 604800 = 7 days)</p>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-red-300">Step 1: Set Duration (Seconds)</label>
+                            {!epochEnded && <span className="text-xs text-yellow-400 flex items-center gap-1">⚠️ Epoch must end first</span>}
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3">Configure the staking epoch duration</p>
+                        
+                        {/* Quick Duration Buttons */}
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                            <button onClick={() => setAdminDuration('86400')} className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition">
+                                1 Day
+                            </button>
+                            <button onClick={() => setAdminDuration('259200')} className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition">
+                                3 Days
+                            </button>
+                            <button onClick={() => setAdminDuration('604800')} className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition">
+                                7 Days
+                            </button>
+                            <button onClick={() => setAdminDuration('1209600')} className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition">
+                                14 Days
+                            </button>
+                            <button onClick={() => setAdminDuration('2592000')} className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition">
+                                30 Days
+                            </button>
+                        </div>
+
                         <div className="flex gap-2">
                             <input
                                 type="number"
@@ -557,21 +695,51 @@ export default function StakingInterface() {
                             />
                             <button
                                 onClick={handleSetDuration}
-                                disabled={isPending || !adminDuration}
-                                className="px-6 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 disabled:opacity-50 rounded-lg text-sm font-bold transition-all"
+                                disabled={isPending || !adminDuration || !epochEnded}
+                                className="px-6 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-bold transition-all"
+                                title={!epochEnded ? 'Current epoch must end before setting new duration' : ''}
                             >
-                                Set
+                                {isPending ? '⏳' : 'Set'}
                             </button>
                         </div>
+                        {adminDuration && (
+                            <p className="text-xs text-gray-500 mt-2">
+                                = {(Number(adminDuration) / 86400).toFixed(2)} days
+                            </p>
+                        )}
                     </div>
 
                     {/* Notify Reward Amount */}
                     <div className="bg-gray-900/50 rounded-xl p-4 border border-red-900/50">
-                        <label className="block text-sm font-medium text-red-300 mb-2">Add Rewards & Start Epoch</label>
-                        <p className="text-xs text-yellow-400/80 mb-3 flex items-start gap-2">
-                            <span>⚠️</span>
-                            <span>Ensure the contract has enough RWD tokens before starting the epoch</span>
-                        </p>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-red-300">Step 2: Add Rewards & Start Epoch</label>
+                            {!durationSet && <span className="text-xs text-yellow-400 flex items-center gap-1">⚠️ Set duration first</span>}
+                        </div>
+                        
+                        {/* Validation Messages */}
+                        <div className="mb-3 space-y-2">
+                            {!epochEnded && (
+                                <div className="text-xs bg-yellow-900/30 border border-yellow-500/30 rounded px-3 py-2 text-yellow-300">
+                                    ⏳ Wait for epoch to end: {getTimeRemaining()}
+                                </div>
+                            )}
+                            {!durationSet && epochEnded && (
+                                <div className="text-xs bg-red-900/30 border border-red-500/30 rounded px-3 py-2 text-red-300">
+                                    ❌ Duration must be set first (Step 1)
+                                </div>
+                            )}
+                            {durationSet && adminRewardAmount && !enoughRewards && (
+                                <div className="text-xs bg-red-900/30 border border-red-500/30 rounded px-3 py-2 text-red-300">
+                                    ❌ Contract doesn't have enough RWD tokens. Transfer {adminRewardAmount} RWD to contract first.
+                                </div>
+                            )}
+                            {durationSet && adminRewardAmount && enoughRewards && (
+                                <div className="text-xs bg-green-900/30 border border-green-500/30 rounded px-3 py-2 text-green-300">
+                                    ✅ Contract has enough RWD tokens. Ready to start!
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex gap-2">
                             <input
                                 type="number"
@@ -582,12 +750,30 @@ export default function StakingInterface() {
                             />
                             <button
                                 onClick={handleNotifyReward}
-                                disabled={isPending || !adminRewardAmount}
-                                className="px-6 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:opacity-50 rounded-lg text-sm font-bold transition-all"
+                                disabled={isPending || !adminRewardAmount || !durationSet || !enoughRewards}
+                                className="px-6 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-bold transition-all"
+                                title={
+                                    !durationSet ? 'Set duration first' :
+                                    !enoughRewards ? 'Contract needs more RWD tokens' :
+                                    'Start the staking epoch'
+                                }
                             >
-                                Notify
+                                {isPending ? '⏳' : 'Start'}
                             </button>
                         </div>
+                        
+                        {/* Estimated APR */}
+                        {adminRewardAmount && adminDuration && totalSupply && totalSupply > 0n && (
+                            <div className="mt-3 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-400">Estimated APR:</span>
+                                    <span className="text-lg font-bold text-blue-400">{calculateEstimatedAPR()}%</span>
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    Based on current TVL of {totalSupply ? Number(formatEther(totalSupply as bigint)).toFixed(2) : '0'} STK
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
